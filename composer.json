@@ -1,0 +1,12 @@
+{
+    "name": "administrator/library_project",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Library excel import system"
+        }
+    ],
+    "require": {
+        "phpoffice/phpspreadsheet": "^1.8"
+    }
+}
