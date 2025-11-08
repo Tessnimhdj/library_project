@@ -1,11 +1,54 @@
 <?php
+require 'vendor/autoload.php';
+
 include 'config.php';
+
+$file_err = $err_msg = "";
+$valid_ext = array("xls", "xlsx");
 if (isset($_POST['submit'])) {
     if ($_FILES['input_file']['name'] == '') {
         $file_err = "Please Select File";
-    }else{
+    } else {
+        //proced for upload
+        $file_name = $_FILES['input_file']['name'];
+        $tmp_name = $_FILES['input_file']['tmp_name'];
 
-        
+        $ext = strtolower(pathinfo($file_name, PATHINFO_EXTENSION));
+        if (in_array($ext, $valid_ext)) {
+            $new_file = time() . basename($file_name);
+
+            try {
+                move_uploaded_file($tmp_name, "uploads/" . $new_file);
+                $reader = new \PhpOffice\PhpSpreadsheet\Reader\Xlsx();
+                $spreadsheet = $reader->load("uploads/" . $new_file);
+                $worksheet = $spreadsheet->getActiveSheet();
+                $data = $worksheet->toArray();
+                unset($data[0]);
+                foreach ($data as $row) {
+                    $inventory_number = $row[0];
+                    $title = $row[1];
+                    $author = $row[2];
+                    $notes = $row[3];
+
+                    $sql = "SELECT * FROM books WHERE inventory_number = ?";
+                    $stmt = $conn->prepare($sql);
+                    $stmt->bind_param("s", $inventory_number);
+                    $stmt->execute();
+                    $result = $stmt->get_result();
+
+                    if ($result->num_rows == 0) {
+                        $sql = "INSERT INTO books (inventory_number, title, author, notes) VALUES (?, ?, ?, ?)";
+                        $stmt = $conn->prepare($sql);
+                        $stmt->bind_param("ssss", $inventory_number, $title, $author, $notes);
+                        $stmt->execute();
+                    }
+                }
+            } catch (Exception $e) {
+                $err_msg = "Error uploading file: " . $e->getMessage();
+            }
+        } else {
+            $err_msg = "Invalid File Extension";
+        }
     }
 }
 ?>
@@ -26,6 +69,13 @@ if (isset($_POST['submit'])) {
 
     <div class="container">
         <h1>Import Excel Data to MySQL</h1>
+        <?php
+        if (!empty($err_msg)) {
+            echo '<div class="alert alert-danger" role="alert">' . $err_msg . '</div>';
+        }
+
+        ?>
+
         <form action="" method="post" enctype="multipart/form-data">
             <div class="mb-3">
                 <label for="input_file" class="form-label fw-bold">Choose file</label>
