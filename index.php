@@ -1,61 +1,21 @@
 <?php
-require 'vendor/autoload.php';
 
-include 'config.php';
+session_start();
 
-$file_err = $err_msg = "";
-$valid_ext = array("xls", "xlsx");
-if (isset($_POST['submit'])) {
-    if ($_FILES['input_file']['name'] == '') {
-        $file_err = "Please Select File";
-    } else {
-        //proced for upload
-        $file_name = $_FILES['input_file']['name'];
-        $tmp_name = $_FILES['input_file']['tmp_name'];
+$err_msg = $_SESSION['err_msg'] ?? '';
+unset($_SESSION['err_msg']);
 
-        $ext = strtolower(pathinfo($file_name, PATHINFO_EXTENSION));
-        if (in_array($ext, $valid_ext)) {
-            $new_file = time() . basename($file_name);
-
-            try {
-                move_uploaded_file($tmp_name, "uploads/" . $new_file);
-                $reader = new \PhpOffice\PhpSpreadsheet\Reader\Xlsx();
-                $spreadsheet = $reader->load("uploads/" . $new_file);
-                $worksheet = $spreadsheet->getActiveSheet();
-                $data = $worksheet->toArray();
-                unset($data[0]);
-                foreach ($data as $row) {
-                    $inventory_number = $row[0];
-                    $title = $row[1];
-                    $author = $row[2];
-                    $notes = $row[3];
-
-                    $sql = "SELECT * FROM books WHERE inventory_number = ?";
-                    $stmt = $conn->prepare($sql);
-                    $stmt->bind_param("s", $inventory_number);
-                    $stmt->execute();
-                    $result = $stmt->get_result();
-
-                    if ($result->num_rows == 0) {
-                        $sql = "INSERT INTO books (inventory_number, title, author, notes) VALUES (?, ?, ?, ?)";
-                        $stmt = $conn->prepare($sql);
-                        $stmt->bind_param("ssss", $inventory_number, $title, $author, $notes);
-                        $stmt->execute();
-                    }
-                }
-            } catch (Exception $e) {
-                $err_msg = "Error uploading file: " . $e->getMessage();
-            }
-        } else {
-            $err_msg = "Invalid File Extension";
-        }
-    }
+if (empty($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
+$err_msg = $err_msg ?? '';
+$file_err = $file_err ?? '';
 ?>
 
 
+
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ar">
 
 <head>
     <meta charset="UTF-8">
@@ -69,21 +29,29 @@ if (isset($_POST['submit'])) {
 
     <div class="container">
         <h1>Import Excel Data to MySQL</h1>
-        <?php
-        if (!empty($err_msg)) {
-            echo '<div class="alert alert-danger" role="alert">' . $err_msg . '</div>';
-        }
 
-        ?>
 
-        <form action="" method="post" enctype="multipart/form-data">
+
+
+        <?php if (!empty($msg)): ?>
+            <div class="alert alert-info" style="color:red; margin:10px 0;">
+                <?= htmlspecialchars($msg); ?>
+            </div>
+        <?php endif; ?>
+
+
+        <form action="import.php" method="post" enctype="multipart/form-data">
+            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']) ?>">
             <div class="mb-3">
                 <label for="input_file" class="form-label fw-bold">Choose file</label>
+
+
                 <input
                     type="file"
                     class="form-control"
                     name="input_file"
                     id="input_file"
+                    accept=".xls,.xlsx"
                     placeholder="Choose Excel file"
                     aria-describedby="fileHelpId" />
                 <div id="fileHelpId" class="form-text">
@@ -91,13 +59,39 @@ if (isset($_POST['submit'])) {
                 </div>
             </div>
 
-            <div class="text-danger "> <?php echo $file_err; ?> </div>
+
+            <?php if (!empty($err_msg)) : ?>
+                <div style="color:green; margin:10px 0;">
+                    <?php echo $err_msg; ?>
+                </div>
+            <?php endif; ?>
+
+
+
 
             <button type="submit" class="btn btn-primary" name="submit">Import</button>
 
         </form>
     </div>
 
+
+    <script>
+        const allowedExtensions = ['xls', 'xlsx'];
+        const inputFile = document.getElementById('input_file');
+        const fileError = document.querySelector('.text-danger');
+
+        inputFile.addEventListener('change', () => {
+            if (!inputFile.value) return;
+            const fileName = inputFile.value;
+            const fileExt = fileName.split('.').pop().toLowerCase();
+            if (!allowedExtensions.includes(fileExt)) {
+                fileError.textContent = "ملف غير مسموح! اختر ملف اخر  .xls أو .xlsx";
+                inputFile.value = "";
+            } else {
+                fileError.textContent = "";
+            }
+        });
+    </script>
 </body>
 
 </html>
