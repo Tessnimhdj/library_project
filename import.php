@@ -1,4 +1,5 @@
 <?php
+
 session_start();
 
 
@@ -102,7 +103,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
     $_SESSION['err_msg'] = $err_msg;
-header("Location: index.php");
-exit;
-
+    header("Location: index.php");
+    exit;
 }
